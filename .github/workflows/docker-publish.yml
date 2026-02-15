@@ -7,32 +7,26 @@ jobs:
     steps:
       - name: Crear usuario administrador
         run: |
-          # Creamos el usuario vncuser con la contraseña de tu secreto
           sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
 
-      - name: Activar Remote Management
+      - name: Activar Remote Management (Screen Sharing)
         run: |
-          # Activamos el servicio sin intentar setear el password VNC legacy
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
-          -clientopts -setmenuextra -menuextra yes \
           -allowAccessFor -allUsers -privs -all -restart -agent
 
-      - name: Configurar e iniciar ngrok
-        env:
-          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      - name: Iniciar túnel con Serveo
         run: |
-          brew install ngrok/ngrok/ngrok
-          # Usamos la variable de entorno para asegurar que el token se lea
-          ngrok config add-authtoken $NGROK_TOKEN
-          # Iniciamos el túnel en segundo plano
-          ngrok tcp 5900 --log=stdout &
+          # Abre un túnel del puerto local 5900 al puerto 80 de serveo.net
+          # -o StrictHostKeyChecking=no evita que el runner se detenga pidiendo confirmar el host
+          ssh -o StrictHostKeyChecking=no -R 80:localhost:5900 serveo.net &
           sleep 5
 
-      - name: Obtener URL de conexión
+      - name: Mantener activo y mostrar logs
         run: |
-          echo "Conéctate a la siguiente dirección usando tu cliente VNC:"
-          curl --silent http://127.0.0.1 | jq -r '.tunnels[0].public_url'
-          
-      - name: Mantener activo
-        run: sleep 21600
+          echo "Conéctate a la dirección que aparezca abajo usando tu cliente VNC:"
+          echo "Usuario: vncuser"
+          echo "Password: ${{ secrets.USER_PASS }}"
+          # Mantenemos el proceso vivo y mostramos si hay errores en la conexión SSH
+          tail -f /dev/null 
+
