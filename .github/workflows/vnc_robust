@@ -1,84 +1,43 @@
-name: macOS VNC Final Fix
-on: workflow_dispatch
-
-jobs:
-  vnc-session:
-    runs-on: macos-latest
-    steps:
-      - name: Crear Usuario y Configurar VNC
-        run: |
-          # 1. Crear usuario con la contraseña del secreto
-          sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
-          
-          # 2. Generar el archivo de contraseña VNC legacy (formato binario de Apple)
-          # Esto permite que RealVNC conecte sin errores de protocolo
-          python3 -c 'import os; from hashlib import md5; p = "${{ secrets.USER_PASS }}".encode(); open("vnc_pass", "wb").write(p[:8])'
-          sudo mkdir -p /Library/Preferences
-          sudo cp vnc_pass /Library/Preferences/com.apple.VNCSettings.txt
-          
-          # 3. Activar el servicio de gestión remota
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-          -activate -configure -access -on \
-          -clientopts -setvnclegacy -vnclegacy yes \
-          -allowAccessFor -allUsers -privs -all -restart -agent
-
-      - name: Instalar y Abrir Ngrok
-        env:
-          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-        run: |
-          brew install ngrok/ngrok/ngrok
-          ngrok config add-authtoken $NGROK_TOKEN
-          # Abrimos túnel TCP al puerto 5900
-          ngrok tcp 5900 --log=stdout &
-          sleep 10
-
-      - name: Obtener URL de Conexión
-        run: |
-          echo "CONÉCTATE DESDE REALVNC A ESTA DIRECCIÓN:"
-          curl --silent http://127.0.0.1 | jq -r '.tunnels.public_url'
-          echo "CONTRASEÑA: La de tu secreto USER_PASS"
-
-      - name: Mantener activo
-        run: sleep 21600
-
-
-
-
-
-
-name: macOS AnyDesk Fix
+name: macOS AnyDesk Force
 on: workflow_dispatch
 
 jobs:
   anydesk-session:
     runs-on: macos-latest
     steps:
-      - name: Arreglar Permisos de Homebrew e Instalar
+      - name: Preparar Entorno y AnyDesk
         run: |
-          # 1. Hacer que el usuario runner sea dueño de homebrew (Soluciona el error anterior)
-          sudo chown -R $(whoami) /opt/homebrew /usr/local/Cellar /usr/local/Homebrew 2>/dev/null || true
+          # 1. Arreglar permisos de Homebrew
+          sudo chown -R $(whoami) /opt/homebrew
           
-          # 2. Instalar herramientas
-          brew install displayplacer
+          # 2. Instalar AnyDesk
           brew install --cask anydesk
 
-      - name: Configurar AnyDesk y Pantalla Virtual
+      - name: Forzar Inicio de Servicio y Pantalla
         run: |
-          # Forzar resolución para activar el driver de video
-          displayplacer "res:1280x720 hz:60 color_depth:8" || true
+          # Forzar que el sistema gráfico despierte (ignora el error de resolución)
+          sudo /usr/bin/login -f runner || true
           
-          # Abrir AnyDesk para que genere la configuración
-          open /Applications/AnyDesk.app
+          # Iniciar AnyDesk en segundo plano con permisos de sistema
+          sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --service &
           sleep 10
           
-          # Establecer contraseña (Usa tu secreto USER_PASS)
-          echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
+          # Configurar contraseña de acceso desatendido
+          echo "Clave123" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
           
+          # Intentar obtener el ID (repetir si es necesario)
           echo "------------------------------------------"
-          echo "TU ID DE ANYDESK ES:"
-          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
-          echo "CONTRASEÑA: La que configuraste en el secreto USER_PASS"
+          echo "ESPERANDO ID DE ANYDESK..."
+          for i in {1..5}; do
+            ANYDESK_ID=$(sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id)
+            if [ ! -z "$ANYDESK_ID" ]; then
+              echo "TU ID DE ANYDESK ES: $ANYDESK_ID"
+              break
+            fi
+            sleep 5
+          done
+          echo "CONTRASEÑA: Clave123"
           echo "------------------------------------------"
 
-      - name: Mantener sesión activa
+      - name: Mantener vivo
         run: sleep 21600
