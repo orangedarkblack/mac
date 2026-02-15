@@ -1,42 +1,24 @@
-name: macOS VNC Final Fix
+name: macOS VNC Final con Tmate
 on: workflow_dispatch
 
 jobs:
   vnc-session:
     runs-on: macos-latest
     steps:
-      - name: Crear Usuario y Configurar VNC
+      - name: Configurar Usuario y VNC
         run: |
-          # 1. Crear usuario con la contraseña del secreto
+          # 1. Crear usuario administrador
           sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
           
-          # 2. Generar el archivo de contraseña VNC legacy (formato binario de Apple)
-          # Esto permite que RealVNC conecte sin errores de protocolo
-          python3 -c 'import os; from hashlib import md5; p = "${{ secrets.USER_PASS }}".encode(); open("vnc_pass", "wb").write(p[:8])'
-          sudo mkdir -p /Library/Preferences
-          sudo cp vnc_pass /Library/Preferences/com.apple.VNCSettings.txt
-          
-          # 3. Activar el servicio de gestión remota
+          # 2. Activar Remote Management (VNC)
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
-          -clientopts -setvnclegacy -vnclegacy yes \
           -allowAccessFor -allUsers -privs -all -restart -agent
 
-      - name: Instalar y Abrir Ngrok
-        env:
-          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-        run: |
-          brew install ngrok/ngrok/ngrok
-          ngrok config add-authtoken $NGROK_TOKEN
-          # Abrimos túnel TCP al puerto 5900
-          ngrok tcp 5900 --log=stdout &
-          sleep 10
-
-      - name: Obtener URL de Conexión
-        run: |
-          echo "CONÉCTATE DESDE REALVNC A ESTA DIRECCIÓN:"
-          curl --silent http://127.0.0.1 | jq -r '.tunnels.public_url'
-          echo "CONTRASEÑA: La de tu secreto USER_PASS"
+      - name: Iniciar Sesión Tmate
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
 
       - name: Mantener activo
         run: sleep 21600
