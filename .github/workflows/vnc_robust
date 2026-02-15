@@ -40,3 +40,45 @@ jobs:
 
       - name: Mantener activo
         run: sleep 21600
+
+
+
+
+
+
+name: macOS AnyDesk Fix
+on: workflow_dispatch
+
+jobs:
+  anydesk-session:
+    runs-on: macos-latest
+    steps:
+      - name: Arreglar Permisos de Homebrew e Instalar
+        run: |
+          # 1. Hacer que el usuario runner sea dueño de homebrew (Soluciona el error anterior)
+          sudo chown -R $(whoami) /opt/homebrew /usr/local/Cellar /usr/local/Homebrew 2>/dev/null || true
+          
+          # 2. Instalar herramientas
+          brew install displayplacer
+          brew install --cask anydesk
+
+      - name: Configurar AnyDesk y Pantalla Virtual
+        run: |
+          # Forzar resolución para activar el driver de video
+          displayplacer "res:1280x720 hz:60 color_depth:8" || true
+          
+          # Abrir AnyDesk para que genere la configuración
+          open /Applications/AnyDesk.app
+          sleep 10
+          
+          # Establecer contraseña (Usa tu secreto USER_PASS)
+          echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
+          
+          echo "------------------------------------------"
+          echo "TU ID DE ANYDESK ES:"
+          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
+          echo "CONTRASEÑA: La que configuraste en el secreto USER_PASS"
+          echo "------------------------------------------"
+
+      - name: Mantener sesión activa
+        run: sleep 21600
