@@ -5,30 +5,34 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Configurar contraseña del usuario
+      - name: Crear usuario administrador
         run: |
+          # Creamos el usuario vncuser con la contraseña de tu secreto
           sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
-          
-      - name: Activar Screen Sharing (VNC)
-        run: |
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-          -activate -configure -access -on -restart -agent -privs -all \
-          -allowAccessFor -allUsers
-          
-          # Configurar contraseña VNC específica
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-          -configure -clientopts -setvncpasswd -vncpasswd ${{ secrets.VNC_PASS }}
 
-      - name: Instalar y ejecutar ngrok
+      - name: Activar Remote Management
+        run: |
+          # Activamos el servicio sin intentar setear el password VNC legacy
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -clientopts -setmenuextra -menuextra yes \
+          -allowAccessFor -allUsers -privs -all -restart -agent
+
+      - name: Configurar e iniciar ngrok
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
           brew install ngrok/ngrok/ngrok
-          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          # Usamos la variable de entorno para asegurar que el token se lea
+          ngrok config add-authtoken $NGROK_TOKEN
+          # Iniciamos el túnel en segundo plano
           ngrok tcp 5900 --log=stdout &
-          sleep 10 # Esperar a que el túnel se establezca
-          
-      - name: Obtener dirección de conexión
+          sleep 5
+
+      - name: Obtener URL de conexión
         run: |
+          echo "Conéctate a la siguiente dirección usando tu cliente VNC:"
           curl --silent http://127.0.0.1 | jq -r '.tunnels[0].public_url'
           
-      - name: Mantener sesión activa
-        run: sleep 21600 # Mantiene el runner vivo hasta por 6 horas
+      - name: Mantener activo
+        run: sleep 21600
