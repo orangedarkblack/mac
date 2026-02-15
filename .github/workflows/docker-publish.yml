@@ -1,34 +1,35 @@
-name: macOS AnyDesk con Pantalla Virtual
+name: macOS AnyDesk Fix
 on: workflow_dispatch
 
 jobs:
   anydesk-session:
     runs-on: macos-latest
     steps:
-      - name: Instalar Herramientas de Pantalla
+      - name: Arreglar Permisos de Homebrew e Instalar
         run: |
-          brew install displayplacer
-          # Forzamos una resolución estándar para activar el frame buffer
-          displayplacer "res:1280x720 hz:60 color_depth:8" || true
-
-      - name: Instalar AnyDesk vía Homebrew (Método Seguro)
-        run: |
-          # Usamos brew pero con sudo para asegurar la carpeta de Aplicaciones
-          sudo brew install --cask anydesk --no-quarantine
-
-      - name: Configurar Acceso Desatendido
-        run: |
-          # Seteamos la contraseña (usa tu secreto USER_PASS)
-          echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
+          # 1. Hacer que el usuario runner sea dueño de homebrew (Soluciona el error anterior)
+          sudo chown -R $(whoami) /opt/homebrew /usr/local/Cellar /usr/local/Homebrew 2>/dev/null || true
           
-          # Iniciamos el proceso en segundo plano para que genere el ID
-          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
-          sleep 15
+          # 2. Instalar herramientas
+          brew install displayplacer
+          brew install --cask anydesk
+
+      - name: Configurar AnyDesk y Pantalla Virtual
+        run: |
+          # Forzar resolución para activar el driver de video
+          displayplacer "res:1280x720 hz:60 color_depth:8" || true
+          
+          # Abrir AnyDesk para que genere la configuración
+          open /Applications/AnyDesk.app
+          sleep 10
+          
+          # Establecer contraseña (Usa tu secreto USER_PASS)
+          echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
           
           echo "------------------------------------------"
           echo "TU ID DE ANYDESK ES:"
           /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
-          echo "CONTRASEÑA: La de tu secreto USER_PASS"
+          echo "CONTRASEÑA: La que configuraste en el secreto USER_PASS"
           echo "------------------------------------------"
 
       - name: Mantener sesión activa
