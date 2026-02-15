@@ -41,3 +41,118 @@ jobs:
 
       - name: Mantener vivo
         run: sleep 21600
+
+
+
+
+anydesk mejorado  
+
+
+
+name: macOS Ultimate Desktop
+on: workflow_dispatch
+
+jobs:
+  desktop-session:
+    runs-on: macos-latest
+    steps:
+      - name: Arreglar Permisos de Homebrew
+        run: |
+          sudo chown -R $(whoami) /opt/homebrew /usr/local/Cellar /usr/local/Homebrew 2>/dev/null || true
+
+      - name: Instalar Driver de Pantalla y AnyDesk
+        run: |
+          # Instalamos displayplacer para gestionar resoluciones
+          brew install displayplacer
+          # Instalamos AnyDesk
+          brew install --cask anydesk
+
+      - name: Configurar Entorno Gráfico
+        run: |
+          # Forzamos al sistema a despertar la consola
+          sudo /usr/bin/login -f runner || true
+          # Evitamos que la Mac entre en reposo
+          sudo caffeinate -u -t 21600 & 
+
+      - name: Configurar AnyDesk
+        run: |
+          # Iniciamos AnyDesk como servicio de sistema (clave para evitar el bloqueo)
+          sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --service &
+          sleep 10
+          
+          # Establecer contraseña de acceso desatendido
+          echo "Clave123" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
+          
+          echo "------------------------------------------"
+          echo "ESPERANDO ID DE ANYDESK..."
+          for i in {1..10}; do
+            ANYDESK_ID=$(sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id)
+            if [ ! -z "$ANYDESK_ID" ]; then
+              echo "TU ID DE ANYDESK ES: $ANYDESK_ID"
+              break
+            fi
+            sleep 5
+          done
+          echo "CONTRASEÑA: Clave123"
+          echo "------------------------------------------"
+
+      - name: Activar VNC de Respaldo
+        run: |
+          # Configuramos el VNC nativo por si AnyDesk no muestra imagen
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -allowAccessFor -allUsers -privs -all -restart -agent
+
+      - name: Sesión Interactiva (tmate)
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+      - name: Mantener activo
+        run: sleep 21600
+
+
+
+vnc mas monitor virtual 
+
+
+name: macOS VNC Pantalla Virtual
+on: workflow_dispatch
+
+jobs:
+  vnc-session:
+    runs-on: macos-latest
+    steps:
+      - name: Instalar Driver de Monitor Virtual
+        run: |
+          # Instalamos un driver que crea un monitor fantasma donde no hay uno físico
+          brew install --cask core-key/tap/virtual-display-driver || true
+          
+      - name: Configurar Usuario y VNC Nativo
+        run: |
+          # 1. Crear usuario administrador (Usa tu secreto o uno fijo para pruebas)
+          sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "Clave123" -admin
+          
+          # 2. Inyectar contraseña binaria para compatibilidad con RealVNC
+          echo "Clave123" | sudo perl -we 'BEGIN { @k = unpack "C*", "\x17\x30\x3a\x29\x21\x21\x5e\xaf" }; chomp(my $p = <STDIN>); print pack "C*", map { $_ ^ shift @k } unpack "C*", substr($p, 0, 8);' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt > /dev/null
+          
+          # 3. Activar Remote Management con modo Legacy (VNC Password)
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -clientopts -setvnclegacy -vnclegacy yes \
+          -allowAccessFor -allUsers -privs -all -restart -agent
+
+      - name: Despertar Sistema Gráfico
+        run: |
+          # Evita que el sistema entre en reposo y fuerza el refresco de pantalla
+          sudo caffeinate -u -t 21600 &
+          sudo /usr/bin/login -f vncuser || true
+
+      - name: Iniciar Túnel Seguro (tmate)
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+      - name: Mantener activo
+        run: sleep 21600
+
