@@ -1,39 +1,33 @@
-name: macOS con AnyDesk y Pantalla Virtual
+name: macOS AnyDesk con Pantalla Virtual
 on: workflow_dispatch
 
 jobs:
   anydesk-session:
     runs-on: macos-latest
     steps:
-      - name: Instalar Driver de Pantalla Virtual
+      - name: Instalar Herramientas de Pantalla
         run: |
-          # Instalamos un driver para crear una pantalla virtual (Dummy Display)
-          brew install --cask vnc-viewer # Opcional, pero ayuda con dependencias
-          # Usamos un emulador de resolución para forzar el frame buffer
-          brew install displayplacer 
-
-      - name: Instalar y Configurar AnyDesk
-        run: |
-          # Descarga e instalación directa para evitar problemas de permisos de Homebrew
-          curl -L -o anydesk.dmg https://download.anydesk.com
-          sudo hdiutil mount anydesk.dmg
-          sudo cp -R /Volumes/AnyDesk/AnyDesk.app /Applications/
-          sudo hdiutil unmount /Volumes/AnyDesk
-
-      - name: Configurar AnyDesk y Pantalla
-        run: |
-          # Forzar una resolución para que el sistema crea que hay un monitor
+          brew install displayplacer
+          # Forzamos una resolución estándar para activar el frame buffer
           displayplacer "res:1280x720 hz:60 color_depth:8" || true
-          
-          # Configurar contraseña de AnyDesk (Usa tu secreto o una fija)
+
+      - name: Instalar AnyDesk vía Homebrew (Método Seguro)
+        run: |
+          # Usamos brew pero con sudo para asegurar la carpeta de Aplicaciones
+          sudo brew install --cask anydesk --no-quarantine
+
+      - name: Configurar Acceso Desatendido
+        run: |
+          # Seteamos la contraseña (usa tu secreto USER_PASS)
           echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
           
-          # Esperar a que el servicio asigne un ID
-          sleep 10
+          # Iniciamos el proceso en segundo plano para que genere el ID
+          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk &
+          sleep 15
           
           echo "------------------------------------------"
           echo "TU ID DE ANYDESK ES:"
-          sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
+          /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
           echo "CONTRASEÑA: La de tu secreto USER_PASS"
           echo "------------------------------------------"
 
