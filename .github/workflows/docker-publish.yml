@@ -15,12 +15,12 @@ jobs:
           -activate -configure -access -on \
           -allowAccessFor -allUsers -privs -all -restart -agent
 
-      - name: Iniciar túnel con Serveo
+      - name: Iniciar túnel TCP con Serveo
         run: |
-          # Abre un túnel del puerto local 5900 al puerto 80 de serveo.net
-          # -o StrictHostKeyChecking=no evita que el runner se detenga pidiendo confirmar el host
-          ssh -o StrictHostKeyChecking=no -R 80:localhost:5900 serveo.net &
-          sleep 5
+          # Usamos el puerto 0 para que Serveo nos asigne un puerto TCP aleatorio
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 0:localhost:5900 serveo.net &
+          sleep 10
+
 
       - name: Mantener activo y mostrar logs
         run: |
