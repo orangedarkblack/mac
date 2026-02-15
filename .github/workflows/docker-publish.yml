@@ -1,32 +1,27 @@
-name: macOS VNC Desktop
-on: workflow_dispatch # Permite activarlo manualmente
+name: macOS VNC con Tmate
+on: workflow_dispatch
 
 jobs:
-  build:
+  vnc-session:
     runs-on: macos-latest
     steps:
       - name: Crear usuario administrador
         run: |
+          # Usamos la contraseña de tu secreto USER_PASS
           sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
 
-      - name: Activar Remote Management (Screen Sharing)
+      - name: Activar Screen Sharing (VNC)
         run: |
+          # Activación del servicio nativo de macOS
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
           -activate -configure -access -on \
           -allowAccessFor -allUsers -privs -all -restart -agent
 
-      - name: Iniciar túnel TCP con Serveo
-        run: |
-          # Usamos el puerto 0 para que Serveo nos asigne un puerto TCP aleatorio
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 0:localhost:5900 serveo.net &
-          sleep 10
+      - name: Configurar sesión interactiva con Tmate
+        uses: mxschmitt/action-tmate@v3
+        with:
+          # Esto permite que cualquier persona con el link entre (útil para debug rápido)
+          limit-access-to-actor: false
 
-
-      - name: Mantener activo y mostrar logs
-        run: |
-          echo "Conéctate a la dirección que aparezca abajo usando tu cliente VNC:"
-          echo "Usuario: vncuser"
-          echo "Password: ${{ secrets.USER_PASS }}"
-          # Mantenemos el proceso vivo y mostramos si hay errores en la conexión SSH
-          tail -f /dev/null 
-
+      - name: Mantener activo
+        run: sleep 21600 # El runner se cerrará tras 6 horas si no lo detienes antes
