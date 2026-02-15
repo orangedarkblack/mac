@@ -1,34 +1,40 @@
-name: macOS AnyDesk Force
+name: macOS Ultimate Desktop
 on: workflow_dispatch
 
 jobs:
-  anydesk-session:
+  desktop-session:
     runs-on: macos-latest
     steps:
-      - name: Preparar Entorno y AnyDesk
+      - name: Arreglar Permisos de Homebrew
         run: |
-          # 1. Arreglar permisos de Homebrew
-          sudo chown -R $(whoami) /opt/homebrew
-          
-          # 2. Instalar AnyDesk
+          sudo chown -R $(whoami) /opt/homebrew /usr/local/Cellar /usr/local/Homebrew 2>/dev/null || true
+
+      - name: Instalar Driver de Pantalla y AnyDesk
+        run: |
+          # Instalamos displayplacer para gestionar resoluciones
+          brew install displayplacer
+          # Instalamos AnyDesk
           brew install --cask anydesk
 
-      - name: Forzar Inicio de Servicio y Pantalla
+      - name: Configurar Entorno Gráfico
         run: |
-          # Forzar que el sistema gráfico despierte (ignora el error de resolución)
+          # Forzamos al sistema a despertar la consola
           sudo /usr/bin/login -f runner || true
-          
-          # Iniciar AnyDesk en segundo plano con permisos de sistema
+          # Evitamos que la Mac entre en reposo
+          sudo caffeinate -u -t 21600 & 
+
+      - name: Configurar AnyDesk
+        run: |
+          # Iniciamos AnyDesk como servicio de sistema (clave para evitar el bloqueo)
           sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --service &
           sleep 10
           
-          # Configurar contraseña de acceso desatendido
+          # Establecer contraseña de acceso desatendido
           echo "Clave123" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
           
-          # Intentar obtener el ID (repetir si es necesario)
           echo "------------------------------------------"
           echo "ESPERANDO ID DE ANYDESK..."
-          for i in {1..5}; do
+          for i in {1..10}; do
             ANYDESK_ID=$(sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id)
             if [ ! -z "$ANYDESK_ID" ]; then
               echo "TU ID DE ANYDESK ES: $ANYDESK_ID"
@@ -39,5 +45,17 @@ jobs:
           echo "CONTRASEÑA: Clave123"
           echo "------------------------------------------"
 
-      - name: Mantener vivo
+      - name: Activar VNC de Respaldo
+        run: |
+          # Configuramos el VNC nativo por si AnyDesk no muestra imagen
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+          -activate -configure -access -on \
+          -allowAccessFor -allUsers -privs -all -restart -agent
+
+      - name: Sesión Interactiva (tmate)
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+      - name: Mantener activo
         run: sleep 21600
