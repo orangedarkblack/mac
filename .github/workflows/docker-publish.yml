@@ -1,27 +1,41 @@
-name: macOS VNC con Tmate
+name: macOS con AnyDesk y Pantalla Virtual
 on: workflow_dispatch
 
 jobs:
-  vnc-session:
+  anydesk-session:
     runs-on: macos-latest
     steps:
-      - name: Crear usuario administrador
+      - name: Instalar Driver de Pantalla Virtual
         run: |
-          # Usamos la contraseña de tu secreto USER_PASS
-          sudo sysadminctl -addUser vncuser -fullName "VNC User" -password "${{ secrets.USER_PASS }}" -admin
+          # Instalamos un driver para crear una pantalla virtual (Dummy Display)
+          brew install --cask vnc-viewer # Opcional, pero ayuda con dependencias
+          # Usamos un emulador de resolución para forzar el frame buffer
+          brew install displayplacer 
 
-      - name: Activar Screen Sharing (VNC)
+      - name: Instalar y Configurar AnyDesk
         run: |
-          # Activación del servicio nativo de macOS
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-          -activate -configure -access -on \
-          -allowAccessFor -allUsers -privs -all -restart -agent
+          # Descarga e instalación directa para evitar problemas de permisos de Homebrew
+          curl -L -o anydesk.dmg https://download.anydesk.com
+          sudo hdiutil mount anydesk.dmg
+          sudo cp -R /Volumes/AnyDesk/AnyDesk.app /Applications/
+          sudo hdiutil unmount /Volumes/AnyDesk
 
-      - name: Configurar sesión interactiva con Tmate
-        uses: mxschmitt/action-tmate@v3
-        with:
-          # Esto permite que cualquier persona con el link entre (útil para debug rápido)
-          limit-access-to-actor: false
+      - name: Configurar AnyDesk y Pantalla
+        run: |
+          # Forzar una resolución para que el sistema crea que hay un monitor
+          displayplacer "res:1280x720 hz:60 color_depth:8" || true
+          
+          # Configurar contraseña de AnyDesk (Usa tu secreto o una fija)
+          echo "${{ secrets.USER_PASS }}" | sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --set-password
+          
+          # Esperar a que el servicio asigne un ID
+          sleep 10
+          
+          echo "------------------------------------------"
+          echo "TU ID DE ANYDESK ES:"
+          sudo /Applications/AnyDesk.app/Contents/MacOS/AnyDesk --get-id
+          echo "CONTRASEÑA: La de tu secreto USER_PASS"
+          echo "------------------------------------------"
 
-      - name: Mantener activo
-        run: sleep 21600 # El runner se cerrará tras 6 horas si no lo detienes antes
+      - name: Mantener sesión activa
+        run: sleep 21600
